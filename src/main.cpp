@@ -26,6 +26,7 @@
 using namespace ace_button;
 
 #include "prefs.h"
+#include "wwvb_frame.h"
 
 #if defined(ESP32)
 #include <ESP32Time.h>
@@ -51,26 +52,16 @@ uint8_t receivedBitCount = 0;
 uint8_t frame_bit_index = 0;
 
 // variables modified in ISR
-volatile bool Showval = false; // true if decoding is complete.  Used to eliminate repeat
+volatile bool bit_received = false;
 volatile unsigned long rise_time;
-volatile unsigned long fall_time;
+volatile unsigned long pulse_width;
 volatile bool updateOutput = false;
+volatile BitTypes isr_bit_type;
 
 // frame variables
 bool populating_frame = false; // true if a valid frame was detected
 bool forcedResync = false;
-
-enum BitTypes
-{
-  WAITING,
-  ZERO,
-  ONE,
-  MARKER,
-  FRAME,
-  INTERFIELD_SPACE,
-  UNKNOWN
-} bitType,
-    lastBitType;
+BitTypes lastBitType;
 
 // configuration
 enum OperationMode
@@ -85,26 +76,19 @@ uint8_t utcOffsetIndex = DEFAULT_UTCOFFSET;
 uint8_t displayBrightness = MAX_BRIGHTNESS; // brightest
 bool mode_12hour = false;
 
-uint8_t bitvalue = 255; // value of the bit
 uint8_t markerCounter = 0;
 uint8_t bitsSinceLastMarker = 0;
 uint32_t goodFrameCount = 0;
 uint32_t framesSinceLastGoodFrame = 0;
-unsigned long bitlength;
+// unsigned long pulse_width;
 
-// field variables
-uint16_t fieldValue = 0;                     // running value of the field as it is getting decoded
-uint16_t fieldvalues[] = {0, 0, 0, 0, 0, 0}; // value for the decoded fields
-int fieldIndex = 0;                          // which field is currently being decoded
-const char *fieldNames[] = {"Minutes", "Hours", "DOY High", "DOYL/DUT+-", "DUT1/Year High", "Year Low/LY/DST"};
-uint16_t hours = 0, minutes = 0, doy = 0, year = 0;
-struct tm resolvedTime;
+Frame *f = nullptr;
+char outputBuffer[80];
 
 // Display variables
 TM1637TinyDisplay6 display(CLK, DIO);
-char displayBuffer[7];
-unsigned long lastDisplayUpdate = 0;
-uint8_t displaySeconds = 0;
+bool synchronized = false;
+uint8_t display_dots = 0b01011000;
 
 // The event handler for the button.
 void handleButtonEvent(AceButton * /* button */, uint8_t eventType,
@@ -168,7 +152,7 @@ void handleButtonEvent(AceButton * /* button */, uint8_t eventType,
       break;
     case CONFIG_OFFSET:
       utcOffsetIndex++;
-      if (utcOffsetIndex > NUM_OFFSETS)
+      if (utcOffsetIndex >= NUM_OFFSETS)
       {
         utcOffsetIndex = 0;
       }
@@ -189,59 +173,6 @@ void handleButtonEvent(AceButton * /* button */, uint8_t eventType,
   }
 }
 
-int8_t hourToHourMode(int8_t hour, bool mode)
-{
-  if (!mode)
-    return hour;
-  else
-    return (hour > 12 ? hour - 12 : hour);
-}
-
-void parseFields()
-{
-  // minutes
-  minutes = (((fieldvalues[0] & 0xF0) >> 4) * 10) + (fieldvalues[0] & 0x0F);
-  // hours
-  hours = (((fieldvalues[1] & 0xF0) >> 4) * 10) + (fieldvalues[1] & 0x0F);
-  // day of year
-  doy = (((fieldvalues[2] & 0xF0) >> 4) * 100) + ((fieldvalues[2] & 0x0F) * 10) + ((fieldvalues[3] & 0xF0) >> 4);
-  // year
-  year = ((fieldvalues[4] & 0x0F) * 10) + ((fieldvalues[5] & 0xF0) >> 4);
-
-  struct tm t;
-
-  time_t now = time(NULL);
-  gmtime_r(&now, &t);
-
-  t.tm_min = minutes + 1; // The frame describes the previous minute
-  t.tm_hour = hours;
-  t.tm_sec = 1;
-  t.tm_mday = 1;
-  t.tm_mon = 0;
-  t.tm_mday = 0;
-  t.tm_yday = 0;
-  t.tm_year = 100 + year; // +100 == start at 2000
-
-  t.tm_isdst = ((fieldvalues[5] & 0x3) == 3) ? 1 : 0;
-
-  // t is now Jan 1 of the year @ hours:minutes past midnight.
-
-  time_t ref = mktime(&t);
-  time_t day = ref + (doy * 86400) + (utcOffsetsMinutes[utcOffsetIndex] * 60); // tm uses 0-based months
-
-  // day is now t + doy days
-
-  gmtime_r(&day, &resolvedTime);
-
-  char buf[80];
-  strftime(buf, 80, "Frame time: %c", &resolvedTime);
-  Serial.println(buf);
-
-#if defined(ESP32)
-  rtc->setTimeStruct(resolvedTime);
-#endif
-}
-
 void isr_routine()
 {
   int signalValue = digitalRead(Signal);
@@ -253,8 +184,32 @@ void isr_routine()
   }
   else
   {
-    fall_time = millis();
-    Showval = true;
+    // fall_time = millis();
+    pulse_width = millis() - rise_time;
+
+    if ((pulse_width < 100) || (pulse_width > 800))
+    {
+      // bad antenna alignment probably
+      isr_bit_type = BAD;
+    }
+    else if (pulse_width < 200)
+    {
+      isr_bit_type = ZERO;
+    }
+    else if (pulse_width < 500)
+    {
+      isr_bit_type = ONE;
+    }
+    else if (pulse_width < 800)
+    {
+      isr_bit_type = MARKER;
+    }
+    else
+    {
+      isr_bit_type = UNKNOWN;
+    }
+
+    bit_received = true;
   }
 }
 
@@ -267,7 +222,7 @@ void setup()
   display.setBrightness(displayBrightness);
   display.showString("boot");
   delay(2000);
-  
+
   pinMode(Signal, INPUT); // Sets the WWVB NOT signal as an input (also S4)
   pinMode(PDN, OUTPUT);   // Sets the WWVB PDN control as an output
   pinMode(LED_PIN, OUTPUT);
@@ -277,7 +232,6 @@ void setup()
   digitalWrite(PDN, LOW);  // Now let the WWVB receiver operate - PDN is LOW
   delay(1000);             // Delay a bit
 
-
   // start with the defaults and override them with the preferences
   mode_12hour = false;
   utcOffsetIndex = 7;
@@ -285,8 +239,7 @@ void setup()
 
   loadPreferences();
 
-  time_t now = time(NULL);
-  gmtime_r(&now, &resolvedTime);
+  f = new Frame();
 
 #if !defined(ARDUINO_ARCH_AVR)
   rtc = new ESP32Time(0);
@@ -308,21 +261,19 @@ void setup()
   buttonConfig->setFeature(ButtonConfig::kFeatureLongPress);
 
   display.clear();
-  
+
   // DATA pin signal change edge detection. (Mandatory)
   attachInterrupt(digitalPinToInterrupt(Signal), isr_routine, CHANGE);
 
-
   Serial.println();
   Serial.println("Establishing frame synchronization");
+  Serial.print("received: ");
 
   mode = CLOCK;
 }
 
 // Now that the setup has been done, the main loop is started
 // **** MAIN LOOP *********************************************************************
-char debugbuf[80];
-
 void loop()
 {
   button.check();
@@ -331,216 +282,92 @@ void loop()
   {
   case CLOCK:
   {
-    if (Showval)
+    if (bit_received)
     {
       receivedBitCount += 1;
-      displaySeconds++;
-
       bitsSinceLastMarker++;
 
-      bitvalue = 0;
+      // Serial.printf("\nbit number = %2d, pulse width = %4dms, bit type = %1d, bit value = ", f->capturedBitCount(), pulse_width, isr_bit_type);
 
-      if (forcedResync || receivedBitCount > 61 || (populating_frame && markerCounter > 6))
+      // deal with some special cases
+      if (isr_bit_type == BAD) // bad antenna alignment or something
+        synchronized = false;
+      else if ((isr_bit_type == MARKER) && (lastBitType == MARKER)) // frame
+        isr_bit_type = FRAME;
+
+      Serial.print(f->BitTypeToChar(isr_bit_type));
+
+      // dont add the next frame's frame bit to the current frame buffer
+      if (isr_bit_type != FRAME)
       {
-        // power cycle the receiver
-        digitalWrite(PDN, HIGH); // Initialize the PDN signal as HIGH (Receiver off)
-        delay(1000);             // Delay a bit
-        digitalWrite(PDN, LOW);  // Now let the WWVB receiver operate - PDN is LOW
-        delay(1000);             // Delay a bit
-
-        // TODO: it might just be simpler to restart the uC
-        Serial.println();
-        Serial.println("Resynchronizing");
-        display.clear();
-        fieldIndex = 0;
-        fieldValue = 0;
-        bitType = UNKNOWN;
-        populating_frame = false;
-        frame_bit_index = 0;
-        receivedBitCount = 0;
-        markerCounter = 0;
-        goodFrameCount = 0;
-        displaySeconds = 0;
-        lastDisplayUpdate = 0;
-        forcedResync = false;
-        bitsSinceLastMarker = 0;
+        f->add(isr_bit_type);
       }
       else
       {
-        bitlength = fall_time - rise_time;
+        Serial.println();
+        Serial.println("captured: ");
 
-        // Serial.println();
-        // Serial.print(bitlength);
-        // Serial.print(": ");
+        f->printFrame();
 
-        if (populating_frame)
-        {
-          frame_bit_index++;
-        }
+        // field values and other info
+        Serial.printf(" fi:%d y:%d d:%d h:%d m:%d c:%d %s bt:%d",
+                      f->capturedBitCount(), f->year(), f->doy(), f->hours(), f->minutes(), f->dutMs(), (f->isDST() ? "DST" : "ST"), isr_bit_type);
 
-        if (frame_bit_index == 4 || frame_bit_index == 14 || frame_bit_index == 24 || frame_bit_index == 34 || frame_bit_index == 44 || frame_bit_index == 54)
+        if (f->isValid())
         {
-          bitType = INTERFIELD_SPACE;
-        }
-        else if (bitlength < 200)
-        {
-          bitType = ZERO;
-          if (populating_frame)
+          Serial.print(" valid ");
+
+          // TODO: calculate time and update RTC clock
+          struct tm frame_time;
+
+          // Add one minute to account for the fact that the frame is one minute behind the actual time
+          // (by the time the frame is parsed).
+          if (f->frameTime(&frame_time, (utcOffsetsMinutes[utcOffsetIndex]) + 1))
           {
-            fieldValue <<= 1;
-          }
-        }
-        else if (bitlength < 500)
-        {
-          bitType = ONE;
-          bitvalue = 1;
-          if (populating_frame)
-          {
-            fieldValue <<= 1;
-            fieldValue += 1;
-          }
-        }
-        else if (bitlength < 800)
-        {
-          // if were trying to populate a frame and there is weirdness in getting markers, then
-          // start over.
-          if (populating_frame && bitsSinceLastMarker < 9)
-          {
-            Serial.println();
-            Serial.println("Invalid marker spacing during frame population.");
-            forcedResync = true;
+            strftime(outputBuffer, 80, "%c", &frame_time);
+            Serial.println(outputBuffer);
           }
 
-          if (lastBitType == MARKER) // frame
-          {
-            bitType = FRAME;
-
-            // Serial.println();
-            // Serial.print("Marker counter = ");
-            // Serial.println(markerCounter);
-            // Serial.print("Frame bit index = ");
-            // Serial.println(frame_bit_index);
-
-            populating_frame = true;
-
-            // if the previous frame was good then assume this one will be also
-            if (frame_bit_index == 60 && markerCounter == 6)
-            {
-              goodFrameCount++;
-              framesSinceLastGoodFrame = 0;
-            }
-            else
-            {
-              framesSinceLastGoodFrame++;
-            }
-
-            fieldIndex = 0;
-            fieldValue = 0;
-            frame_bit_index = 0;
-            receivedBitCount = 1; // the frame bit is the first bit of the frame so... one bit
-            markerCounter = 0;
-            displaySeconds = 0;
-            lastDisplayUpdate = 0;
-            bitsSinceLastMarker = 0;
-          }
-          else // marker
-          {
-            bitType = MARKER;
-            fieldvalues[fieldIndex] = fieldValue;
-            fieldValue = 0;
-            fieldIndex += 1;
-            markerCounter++;
-          }
+          // set the RTC on a valid frame to the local time
+          rtc->setTimeStruct(frame_time);
+          synchronized = true;
         }
         else
         {
-          bitType = UNKNOWN;
-          forcedResync = true;
+          Serial.println(" invalid");
         }
 
-        if (bitType == BitTypes::FRAME && framesSinceLastGoodFrame == 0)
-        {
-          // TODO: validate the previous frame 
-          Serial.print(" -- ");
-          parseFields();
-        }
+        /// reset for a new frame
+        f->reset();
+        receivedBitCount = 1; // received one bit for this frame - the frame bit
 
-        switch (bitType)
-        {
-        case BitTypes::FRAME:
-          if (goodFrameCount > MIN_GOOD_FRAMES)
-          {
-            Serial.print("*F");
-          }
-          else
-          {
-            Serial.print(" F");
-          }
-          break;
-        case BitTypes::INTERFIELD_SPACE:
-          Serial.print('S');
-          break;
-        case BitTypes::MARKER:
-          Serial.print(" M ");
-          break;
-        case BitTypes::ONE:
-          Serial.print('1');
-          break;
-        case BitTypes::ZERO:
-          Serial.print('0');
-          break;
-        case BitTypes::UNKNOWN:
-          Serial.print('?');
-          break;
-        default:
-          Serial.print('-');
-          break;
-        }
+        // put this here so the received string output begins with the 'F'
+        Serial.printf("\nNew frame:\nreceived: ");
 
-        lastBitType = bitType;
-        Showval = false;
+        f->add(BitTypes::FRAME); // add the FRM bit to the new frame
       }
-
-#if !defined(ESP32)
-      if (framed)
-      {
-        display.showNumberDec(hourToHourMode(resolvedTime.tm_hour, mode_12hour), 0b01000000, false, 2, 0);
-        display.showNumberDec(resolvedTime.tm_min, 0b01000000, true, 2, 2);
-      }
-#endif
     }
-  }
 
-#if defined(ESP32)
-    // if ((framed == true) && (millis() - lastDisplayUpdate > 1000))
+    lastBitType = isr_bit_type;
+    bit_received = false;
+
     if (updateOutput)
     {
-      // Serial.println(rtc->getDateTime(true));
-
-      struct tm t = rtc->getTimeStruct();
-      bool noSync = (framesSinceLastGoodFrame > MAX_BAD_FRAMES);
-      // display the time form the RTC if there are good frames or too many bad frames have come through
-
-      if (goodFrameCount > MIN_GOOD_FRAMES || noSync)
-      {
-        display.showNumberDec(hourToHourMode(t.tm_hour, mode_12hour), 0b01000000, false, 2, 0);
-        display.showNumberDec(t.tm_min, 0b01000000, true, 2, 2);
-        display.showNumberDec(t.tm_sec, noSync ? 0b01000000 : 0b00000000, true, 2, 4);
-      }
-      else
-      {
-        display.showString("F", 1, 0, 0);
-        display.showNumberDec(goodFrameCount, 0, false, 1, 1);
-        display.showString("b", 1, 3, 0);
-        display.showNumberDec(receivedBitCount, 0b00000000, true, 2, 4);
-      }
-
       updateOutput = false;
-      lastDisplayUpdate = millis();
-    }
-#endif
+      struct tm rtctime = rtc->getTimeStruct();
 
-    break;
+      snprintf(outputBuffer, 80, "%2d%02d%02d", (mode_12hour ? (rtctime.tm_hour > 12 ? rtctime.tm_hour - 12 : rtctime.tm_hour) : rtctime.tm_hour), rtctime.tm_min, rtctime.tm_sec);
+      if (synchronized)
+        display_dots = 0b01010000;
+      else if (display_dots == 0b01011000)
+        display_dots = 0b01011000;
+      else
+        display_dots = 0b01010000;
+
+      display.showString(outputBuffer, 6, 0, display_dots);
+    }
+  }
+  break;
   case CONFIG_1224:
     display.showString("h", 1, 0, 0);
     display.showNumberDec(mode_12hour ? 12 : 24, 0, 0, 2, 4);
