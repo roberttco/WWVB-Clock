@@ -1,6 +1,6 @@
 # WWVB Clock
 
-This project is for a WWVB controlled digital clock using a WWVB radio receiver module and ESP32-C3 Super Mini.
+This project is for a WWVB controlled digital clock using a WWVB radio receiver module and ESP32-C3 Super Mini.  The project is intended to be built using PlatformIO in VS code.
 
 ## Operation
 The [WWVB](https://en.wikipedia.org/wiki/WWVB) clock signal is received via a radio module that incorporates the [CME6005 receiver IC](https://shotech.de/Datasheet/c-max/CME6005%20Datasheet%20A23.pdf) and a high gain AM antenna tuned to 60kHz - the transmit frequency for WWVB in North America.  The encoded transmission is decoded on the ESP32 whose on-board real time clock is updated when a valid time frame is received.  The RTC time is displayed on the LED display and updated each second.  The display update is triggered by the received one second pulse from WWVB (e.g. the clock is only updated if the receiver is receiving a signal).
@@ -57,3 +57,8 @@ the smaller nut.  Tighten so the antenna holder requires some light force to rot
 * [AceButton](https://github.com/bxparks/AceButton)
 * [TM1637TinyDisplay](https://github.com/jasonacox/TM1637TinyDisplay)
 
+## TODO
+* The code has a lot of debugging output.  It not necessarily a bad thing but it would be nice if the debug build included it and the not-debug build did not.
+* Some more refactoring and cleanup is definitely needed.
+* The code that parses the WWVB signal would be good as a separate library.
+* Having more display options might be nice and maybe supporting Atmel32p8 processors (e.g. Arduino UNO) would be good.
