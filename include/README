@@ -1,37 +1,59 @@
+# WWVB Clock
 
-This directory is intended for project header files.
+This project is for a WWVB controlled digital clock using a WWVB radio receiver module and ESP32-C3 Super Mini.
 
-A header file is a file containing C declarations and macro definitions
-to be shared between several project source files. You request the use of a
-header file in your project source file (C, C++, etc) located in `src` folder
-by including it, with the C preprocessing directive `#include'.
+## Operation
+The [WWVB](https://en.wikipedia.org/wiki/WWVB) clock signal is received via a radio module that incorporates the [CME6005 receiver IC](https://shotech.de/Datasheet/c-max/CME6005%20Datasheet%20A23.pdf) and a high gain AM antenna tuned to 60kHz - the transmit frequency for WWVB in North America.  The encoded transmission is decoded on the ESP32 whose on-board real time clock is updated when a valid time frame is received.  The RTC time is displayed on the LED display and updated each second.  The display update is triggered by the received one second pulse from WWVB (e.g. the clock is only updated if the receiver is receiving a signal).
 
-```src/main.c
+The WWVB signal format included indicators for daylight savings time.  The DST bits affect the displayed time inasmuch as the time reflects the proper time regardless of the state of DST.
 
-#include "header.h"
+The clock also incorporates the ability to set a UTC offset (defaults to -360 minutes) so it can be used in any geography.  Additional preference settings include brightness, 12- or 24-hour display mode, and if the display orientation is flipped.
 
-int main (void)
-{
- ...
-}
-```
+## Setup
+The clock only requires that the antenna be oriented to its long axis is perpendicular to the direction facing Wellington, CO, USA (40°41′54″N 105°00′01″W]).  After power-on, it may take up to 3 minutes to synchronize the RTC.  If the signal is poor of or the antenna is mis-aimed, it may take longer or synchronization may not be achieved.
 
-Including a header file produces the same results as copying the header file
-into each source file that needs it. Such copying would be time-consuming
-and error-prone. With a header file, the related declarations appear
-in only one place. If they need to be changed, they can be changed in one
-place, and programs that include the header file will automatically use the
-new version when next recompiled. The header file eliminates the labor of
-finding and changing all the copies as well as the risk that a failure to
-find one copy will result in inconsistencies within a program.
+If the clock is not synchronized, the decimal point between the tens and ones seconds will be illuminated.  Similarly, at power-up, the displayed time will be 00.00.00 and the seconds will increment as new received pulses are received.
 
-In C, the convention is to give header files names that end with `.h'.
+## Configuration
+Pressing the configuration button for more than one second, will switch the clock to configuration mode.  Press the button for more than one second to move to the next option.  Short-ckick the button to change the option's value.
+#### h (12 or 24 hour mode)
+The clock can display in 12 or 24 hour mode.  Note that in 12 hour mode, no am or pm indication is provided.
+#### o (UTC offset)
+Select the offset in minutes of your location relative to [UTC](https://en.wikipedia.org/wiki/Coordinated_Universal_Time).
+#### b (brightness)
+Select the display brightness.  The clock will boot at full brightness and then after a couple seconds, will change to the setting you choose.
+#### f (flipped)
+Change the display orientation.
 
-Read more about using header files in official GCC documentation:
+## Troubleshooting
+* If the clock is not updating or the seconds are increasing rapidly, it is an indication there is too much interference, or the antenna is not aimed properly.
+* If the clock is not updating and reboots after 60 seconds, no radio signal is being received.
 
-* Include Syntax
-* Include Operation
-* Once-Only Headers
-* Computed Includes
+## Hardware
+The clock is implemented with a CM6005 module, a ESP32-C3 Super Mini, and a TM1637 based 6-digit LED display.  All components are from AliExpress. YMMV with AliExpress links.  A simple search will probably get you what youre looking for since AliExpress vendors are flighty sometimes.
+* [WWVB Module](https://www.aliexpress.us/item/3256809207347687.html)
+* [ESP32-C3 Super Mini](https://www.aliexpress.us/item/3256807018729495.html)
+* [TM1637 display](https://www.aliexpress.us/item/3256809794339103.htm)
+* [28AWG silicone wire](https://www.aliexpress.us/item/3256808964036554.html)
+* [Push button](https://www.amazon.com/dp/B01E38OS7K)
 
-https://gcc.gnu.org/onlinedocs/cpp/Header-Files.html
+### 3D Printed Case
+The case for this project was designed in TinkerCad and is available here: https://www.tinkercad.com/things/ko51xbmO7G8-wwvb-clock-case.  If you print this case, it is strongly recommended to use 28AWG silicone coated wi\re for hookup.  Particularly between the WWVB module and the ESP32 since the antenna holder rotates. 
+#### Assembly
+While no specific assembly instruction exist, here are a few tips (create a new issue if you have a question).
+1. Four 28AWG wires should be fed through the screw that affixes the antenna holder to the case.  Take care to solder the wires to the module so they leave the module in direction of the wire "trough".
+2. Use hot-glue to affix the display and ESP32 to the case.  
+3. There is a single layer of print in front of the display that acts as a diffuser.  Press down on the display while the glue cools to make sure it is clearly visible from the outside of the case.
+4. Tighten the cam nut to the screw first and then lock it into place with
+the smaller nut.  Tighten so the antenna holder requires some light force to rotate it, but do not overtighten - printed screws aren't very sturdy.
+5. Use M2.5 heated inserts in the rear of the case.
+6. Make sure there aren't any obstructions that prevent the antenna from turning when the case is assembled - for example the display wires.  Also use enough connecting wire between the antenna module to make a loop in the case before connecting to the ESP32.  This affords the ability to rotate the antenna.
+7. The config button is inserted in the the rear of the case and then the wedge is inserted into the slot to hold it in place.  You can glue it there or use a soldering iron to melt the wedge and the rear/base plate together.
+
+## References/Libraries
+* [UTC](https://en.wikipedia.org/wiki/Coordinated_Universal_Time)
+* [WWVB](https://en.wikipedia.org/wiki/WWVB)
+* [CME6005 Datasheet](https://shotech.de/Datasheet/c-maxME6005%20Datasheet%20A23.pdf)
+* [AceButton](https://github.com/bxparks/AceButton)
+* [TM1637TinyDisplay](https://github.com/jasonacox/TM1637TinyDisplay)
+
