@@ -42,11 +42,11 @@ AceButton button;
 #define Signal 3
 #define PDN 10
 
-#define MAX_BRIGHTNESS 7
 #define LED_PIN 8
 
 #define MIN_GOOD_FRAMES 2
 #define MAX_BAD_FRAMES 5
+#define RECEIVE_TIMEOUT_MS 60000
 
 uint8_t receivedBitCount = 0;
 uint8_t frame_bit_index = 0;
@@ -70,17 +70,14 @@ enum OperationMode
   CONFIG_BEGIN,
   CONFIG_1224,
   CONFIG_OFFSET,
-  CONFIG_BRIGHTNESS
+  CONFIG_BRIGHTNESS,
+  CONFIG_FLIPDISPLAY
 } mode;
 uint8_t utcOffsetIndex = DEFAULT_UTCOFFSET;
-uint8_t displayBrightness = MAX_BRIGHTNESS; // brightest
+uint8_t display_brightness = DEFAULT_BRIGHTNESS;
 bool mode_12hour = false;
-
-uint8_t markerCounter = 0;
-uint8_t bitsSinceLastMarker = 0;
-uint32_t goodFrameCount = 0;
-uint32_t framesSinceLastGoodFrame = 0;
-// unsigned long pulse_width;
+bool flipped_display = false;
+unsigned long receive_watchdog = 0;
 
 Frame *f = nullptr;
 char outputBuffer[80];
@@ -123,10 +120,15 @@ void handleButtonEvent(AceButton * /* button */, uint8_t eventType,
       mode = CONFIG_BRIGHTNESS;
       break;
     case CONFIG_BRIGHTNESS:
+      mode = CONFIG_FLIPDISPLAY;
+      break;
+    case CONFIG_FLIPDISPLAY:
       Serial.println("CLOCK");
       {
-        savePrefs("prefs", mode_12hour, utcOffsetIndex, displayBrightness);
+        savePrefs("prefs", mode_12hour, utcOffsetIndex, display_brightness, flipped_display);
         receivedBitCount = 100;
+        display.setBrightness(display_brightness);
+        display.flipDisplay(flipped_display);
         mode = CLOCK;
         break;
       }
@@ -141,14 +143,7 @@ void handleButtonEvent(AceButton * /* button */, uint8_t eventType,
     switch (mode)
     {
     case CONFIG_1224:
-      if (mode_12hour)
-      {
-        mode_12hour = false;
-      }
-      else
-      {
-        mode_12hour = true;
-      }
+      mode_12hour = mode_12hour ? false: true;
       break;
     case CONFIG_OFFSET:
       utcOffsetIndex++;
@@ -158,12 +153,14 @@ void handleButtonEvent(AceButton * /* button */, uint8_t eventType,
       }
       break;
     case CONFIG_BRIGHTNESS:
-      displayBrightness++;
-      if (displayBrightness > MAX_BRIGHTNESS)
+      display_brightness++;
+      if (display_brightness > MAX_BRIGHTNESS)
       {
-        displayBrightness = 0;
+        display_brightness = 0;
       }
       break;
+    case CONFIG_FLIPDISPLAY:
+      flipped_display = flipped_display ? false : true;
     default:
       break;
     }
@@ -219,9 +216,16 @@ void setup()
   display.begin();
   delay(1000);
 
-  display.setBrightness(displayBrightness);
+
+  display.setBrightness(7);
   display.showString("boot");
+
   delay(2000);
+
+  loadPreferences();
+  
+  display.setBrightness(display_brightness);
+  display.flipDisplay(flipped_display);
 
   pinMode(Signal, INPUT); // Sets the WWVB NOT signal as an input (also S4)
   pinMode(PDN, OUTPUT);   // Sets the WWVB PDN control as an output
@@ -232,13 +236,7 @@ void setup()
   digitalWrite(PDN, LOW);  // Now let the WWVB receiver operate - PDN is LOW
   delay(1000);             // Delay a bit
 
-  // start with the defaults and override them with the preferences
-  mode_12hour = false;
-  utcOffsetIndex = 7;
-  displayBrightness = 5;
-
-  loadPreferences();
-
+  
   f = new Frame();
 
 #if !defined(ARDUINO_ARCH_AVR)
@@ -269,6 +267,7 @@ void setup()
   Serial.println("Establishing frame synchronization");
   Serial.print("received: ");
 
+  receive_watchdog = millis();  // start the watchdog time
   mode = CLOCK;
 }
 
@@ -278,6 +277,15 @@ void loop()
 {
   button.check();
 
+  if (millis() - receive_watchdog > RECEIVE_TIMEOUT_MS)
+  {
+    Serial.println();
+    Serial.println("No bit received before watchdot timeout.");
+    display.showString("no rcv");
+    delay(5000);
+    ESP.restart();
+  }
+
   switch (mode)
   {
   case CLOCK:
@@ -285,7 +293,7 @@ void loop()
     if (bit_received)
     {
       receivedBitCount += 1;
-      bitsSinceLastMarker++;
+      receive_watchdog = millis();
 
       // Serial.printf("\nbit number = %2d, pulse width = %4dms, bit type = %1d, bit value = ", f->capturedBitCount(), pulse_width, isr_bit_type);
 
@@ -298,7 +306,7 @@ void loop()
       Serial.print(f->BitTypeToChar(isr_bit_type));
 
       // dont add the next frame's frame bit to the current frame buffer
-      if (isr_bit_type != FRAME)
+      if (isr_bit_type != FRAME && isr_bit_type != BAD)
       {
         f->add(isr_bit_type);
       }
@@ -378,8 +386,13 @@ void loop()
     break;
   case CONFIG_BRIGHTNESS:
     display.showString("b", 1, 0, 0);
-    display.showNumberDec(displayBrightness, 0, 0, 1, 5);
-    display.setBrightness(displayBrightness);
+    display.showNumberDec(display_brightness+1, 0, 0, 1, 5);
+    display.setBrightness(display_brightness);
+    break;
+  case CONFIG_FLIPDISPLAY:
+    display.showString("f", 1, 0, 0);
+    display.showNumberDec(flipped_display ? 1 : 0, 0, 0, 1, 5);
+    display.flipDisplay(flipped_display);
     break;
   default:
     Serial.println("Invalid operating mode");
