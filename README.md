@@ -3,7 +3,7 @@
 This project is for a WWVB controlled digital clock using a WWVB radio receiver module and ESP32-C3 Super Mini.  The project is intended to be built using PlatformIO in VS code.
 
 ## Operation
-The [WWVB](https://en.wikipedia.org/wiki/WWVB){:target="_blank"} clock signal is received via a radio module that incorporates the [CME6005 receiver IC]:  (https://shotech.de/Datasheet/c-max/CME6005%20Datasheet%20A23.pdf) and a high gain AM antenna tuned to 60kHz - the transmit frequency for WWVB in North America.  The encoded transmission is decoded on the ESP32 whose on-board real time clock is updated when a valid time frame is received.  The RTC time is displayed on the LED display and updated each second.  The display update is triggered by the received one second pulse from WWVB (e.g. the clock is only updated if the receiver is receiving a signal).
+The [WWVB](https://en.wikipedia.org/wiki/WWVB){:target="_blank"} clock signal is received via a radio module that incorporates the <a href="https://shotech.de/Datasheet/c-max/CME6005%20Datasheet%20A23.pdf" target="_blank" rel="noopener noreferrer">CME6005 Datasheet</a> and a high gain AM antenna tuned to 60kHz - the transmit frequency for WWVB in North America.  The encoded transmission is decoded on the ESP32 whose on-board real time clock is updated when a valid time frame is received.  The RTC time is displayed on the LED display and updated each second.  The display update is triggered by the received one second pulse from WWVB (e.g. the clock is only updated if the receiver is receiving a signal).
 
 The WWVB signal format included indicators for daylight savings time.  The DST bits affect the displayed time inasmuch as the time reflects the proper time regardless of the state of DST.
 
