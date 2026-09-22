@@ -3,7 +3,7 @@
 This project is for a WWVB controlled digital clock using a WWVB radio receiver module and ESP32-C3 Super Mini.  The project is intended to be built using PlatformIO in VS code.
 
 ## Operation
-The [WWVB](https://en.wikipedia.org/wiki/WWVB){:target="_blank"} clock signal is received via a radio module that incorporates the [CME6005 receiver IC](https://shotech.de/Datasheet/c-max/CME6005%20Datasheet%20A23.pdf){:target="_blank"} and a high gain AM antenna tuned to 60kHz - the transmit frequency for WWVB in North America.  The encoded transmission is decoded on the ESP32 whose on-board real time clock is updated when a valid time frame is received.  The RTC time is displayed on the LED display and updated each second.  The display update is triggered by the received one second pulse from WWVB (e.g. the clock is only updated if the receiver is receiving a signal).
+The [WWVB](https://en.wikipedia.org/wiki/WWVB) clock signal is received via a radio module that incorporates the [CME6005 receiver IC](https://shotech.de/Datasheet/c-max/CME6005%20Datasheet%20A23.pdf) and a high gain AM antenna tuned to 60kHz - the transmit frequency for WWVB in North America.  The encoded transmission is decoded on the ESP32 whose on-board real time clock is updated when a valid time frame is received.  The RTC time is displayed on the LED display and updated each second.  The display update is triggered by the received one second pulse from WWVB (e.g. the clock is only updated if the receiver is receiving a signal).
 
 The WWVB signal format included indicators for daylight savings time.  The DST bits affect the displayed time inasmuch as the time reflects the proper time regardless of the state of DST.
 
@@ -19,7 +19,7 @@ Pressing the configuration button for more than one second, will switch the cloc
 #### h (12 or 24 hour mode)
 The clock can display in 12 or 24 hour mode.  Note that in 12 hour mode, no am or pm indication is provided.
 #### o (UTC offset)
-Select the offset in minutes of your location relative to [UTC](https://en.wikipedia.org/wiki/Coordinated_Universal_Time){:target="_blank"}.
+Select the offset in minutes of your location relative to [UTC](https://en.wikipedia.org/wiki/Coordinated_Universal_Time).
 #### b (brightness)
 Select the display brightness.  The clock will boot at full brightness and then after a couple seconds, will change to the setting you choose.
 #### f (flipped)
@@ -31,14 +31,14 @@ Change the display orientation.
 
 ## Hardware
 The clock is implemented with a CM6005 module, a ESP32-C3 Super Mini, and a TM1637 based 6-digit LED display.  All components are from AliExpress. YMMV with AliExpress links.  A simple search will probably get you what youre looking for since AliExpress vendors are flighty sometimes.
-* [WWVB Module](https://www.aliexpress.us/item/3256809207347687.html){:target="_blank"}
-* [ESP32-C3 Super Mini](https://www.aliexpress.us/item/3256807018729495.html){:target="_blank"}
-* [TM1637 display](https://www.aliexpress.us/item/3256809794339103.htm){:target="_blank"}
-* [28AWG silicone wire](https://www.aliexpress.us/item/3256808964036554.html){:target="_blank"}
-* [Push button](https://www.amazon.com/dp/B01E38OS7K){:target="_blank"}
+* [WWVB Module](https://www.aliexpress.us/item/3256809207347687.html)
+* [ESP32-C3 Super Mini](https://www.aliexpress.us/item/3256807018729495.html)
+* [TM1637 display](https://www.aliexpress.us/item/3256809794339103.htm)
+* [28AWG silicone wire](https://www.aliexpress.us/item/3256808964036554.html)
+* [Push button](https://www.amazon.com/dp/B01E38OS7K)
 
 ### 3D Printed Case
-The case for this project was designed in TinkerCad and is available [here](https://www.tinkercad.com/things/ko51xbmO7G8-wwvb-clock-case){:target="_blank"}.  If you print this case, it is strongly recommended to use 28AWG silicone coated wi\re for hookup.  Particularly between the WWVB module and the ESP32 since the antenna holder rotates. 
+The case for this project was designed in TinkerCad and is available here: https://www.tinkercad.com/things/ko51xbmO7G8-wwvb-clock-case.  If you print this case, it is strongly recommended to use 28AWG silicone coated wi\re for hookup.  Particularly between the WWVB module and the ESP32 since the antenna holder rotates. 
 #### Assembly
 While no specific assembly instruction exist, here are a few tips (create a new issue if you have a question).
 1. Four 28AWG wires should be fed through the screw that affixes the antenna holder to the case.  Take care to solder the wires to the module so they leave the module in direction of the wire "trough".
@@ -51,11 +51,11 @@ the smaller nut.  Tighten so the antenna holder requires some light force to rot
 7. The config button is inserted in the the rear of the case and then the wedge is inserted into the slot to hold it in place.  You can glue it there or use a soldering iron to melt the wedge and the rear/base plate together.
 
 ## References/Libraries
-* [UTC](https://en.wikipedia.org/wiki/Coordinated_Universal_Time){:target="_blank"}
-* [WWVB](https://en.wikipedia.org/wiki/WWVB){:target="_blank"}
-* [CME6005 Datasheet](https://shotech.de/Datasheet/c-maxME6005%20Datasheet%20A23.pdf){:target="_blank"}
-* [AceButton](https://github.com/bxparks/AceButton){:target="_blank"}
-* [TM1637TinyDisplay](https://github.com/jasonacox/TM1637TinyDisplay){:target="_blank"}
+* [UTC](https://en.wikipedia.org/wiki/Coordinated_Universal_Time)
+* [WWVB](https://en.wikipedia.org/wiki/WWVB)
+* [CME6005 Datasheet](https://shotech.de/Datasheet/c-maxME6005%20Datasheet%20A23.pdf)
+* [AceButton](https://github.com/bxparks/AceButton)
+* [TM1637TinyDisplay](https://github.com/jasonacox/TM1637TinyDisplay)
 
 ## TODO
 * The code has a lot of debugging output.  It not necessarily a bad thing but it would be nice if the debug build included it and the not-debug build did not.
