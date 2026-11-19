@@ -53,7 +53,7 @@ the smaller nut.  Tighten so the antenna holder requires some light force to rot
 ## References/Libraries
 * [UTC](https://en.wikipedia.org/wiki/Coordinated_Universal_Time)
 * [WWVB](https://en.wikipedia.org/wiki/WWVB)
-* [CME6005 Datasheet](https://shotech.de/Datasheet/c-maxME6005%20Datasheet%20A23.pdf)
+* [CME6005 Datasheet](assets/CME6005.PDF)
 * [AceButton](https://github.com/bxparks/AceButton)
 * [TM1637TinyDisplay](https://github.com/jasonacox/TM1637TinyDisplay)
 
