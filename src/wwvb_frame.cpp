@@ -259,7 +259,7 @@ bool Frame::frameTime(struct tm *ft, int offset = 0)
     t.tm_mday = 0;
     t.tm_yday = 0;
     t.tm_year = 100 + this->year(); // +100 == start at 2000
-    t.tm_isdst = this->isDST();
+    t.tm_isdst = this->isDST() ? 1 : 0; // this doesn't seem to actually do anything
 
     // t is now Jan 1 of the year @ hours:minutes past midnight.
 

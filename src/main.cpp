@@ -329,8 +329,8 @@ void loop()
           struct tm frame_time;
 
           // Add one minute to account for the fact that the frame is one minute behind the actual time
-          // (by the time the frame is parsed).
-          if (f->frameTime(&frame_time, (utcOffsetsMinutes[utcOffsetIndex]) + 1))
+          // (by the time the frame is parsed).  Account for DST here by subtracting an our during standard time.
+          if (f->frameTime(&frame_time, utcOffsetsMinutes[utcOffsetIndex] + 1 - (f->isDST() ? 0 : 60)))
           {
             strftime(outputBuffer, 80, "%c", &frame_time);
             Serial.println(outputBuffer);
