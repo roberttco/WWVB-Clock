@@ -108,11 +108,17 @@ void Frame::reset()
     memset(frame, '-', sizeof(char) * FRAME_BUFF_CHARS);
 }
 
-void Frame::printFrame()
+void Frame::printFrameHeader()
 {
     Serial.println("            |minutes-|hours----|doy-----------|DUTs|DUT-|year-----|LYI-|");
     Serial.println("            |T   O   |T   O    |H    T    O   |    |    |T    O   |    |");
     Serial.println("        XXXXF...S....P....S....P....S....P....S....P....S....P....S....P");
+}
+
+void Frame::printFrame()
+{
+    //printFrameHeader();
+
     Serial.print("binary: ");
 
     for (int i = sizeof(uint64_t) * 8 - 1; i >= 0; i--)

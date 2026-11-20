@@ -67,6 +67,7 @@ public:
     void reset();
     bool isValid();
     void printframe();
+    void printFrameHeader();
     void printFrameVal();
     char BitTypeToChar(BitTypes value);
 

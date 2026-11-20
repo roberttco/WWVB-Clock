@@ -350,7 +350,10 @@ void loop()
         receivedBitCount = 1; // received one bit for this frame - the frame bit
 
         // put this here so the received string output begins with the 'F'
-        Serial.printf("\nNew frame:\nreceived: ");
+        //Serial.printf("\nNew frame:\nreceived: ");
+        Serial.printf("\nNew frame:\n");
+        f->printFrameHeader();
+        Serial.printf("  rcvd:      ");
 
         f->add(BitTypes::FRAME); // add the FRM bit to the new frame
       }
