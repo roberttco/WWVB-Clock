@@ -189,15 +189,15 @@ void isr_routine()
       // bad antenna alignment probably
       isr_bit_type = BAD;
     }
-    else if (pulse_width < 200)
+    else if (pulse_width < 202)
     {
       isr_bit_type = ZERO;
     }
-    else if (pulse_width < 500)
+    else if (pulse_width < 502)
     {
       isr_bit_type = ONE;
     }
-    else if (pulse_width < 800)
+    else if (pulse_width < 802)
     {
       isr_bit_type = MARKER;
     }
